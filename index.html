@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UPI Statement Parser — Expense Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;
+    --border:#2e3348;--border2:#3d4260;
+    --text:#e8eaf0;--text2:#8b90a8;--text3:#5a5f78;
+    --accent:#4f7cff;--accent2:#3a5fd4;
+    --green:#22c55e;--red:#f87171;--amber:#fbbf24;--purple:#a78bfa;
+    --radius:10px;--radius-lg:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  body{font-family:'DM Sans','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;}
+  header{border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;background:rgba(15,17,23,0.92);backdrop-filter:blur(12px);z-index:100;}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;}
+  .logo-icon{width:30px;height:30px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .badge{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(79,124,255,0.15);color:var(--accent);border:1px solid rgba(79,124,255,0.3);font-weight:500;}
+  main{max-width:900px;margin:0 auto;padding:2.5rem 1.5rem 4rem;}
+  .hero{text-align:center;margin-bottom:2rem;}
+  .hero h1{font-size:clamp(1.6rem,4vw,2.2rem);font-weight:600;letter-spacing:-0.5px;margin-bottom:0.5rem;background:linear-gradient(135deg,#e8eaf0 0%,#8b90a8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .hero p{color:var(--text2);font-size:15px;max-width:500px;margin:0 auto 1rem;}
+  .bank-pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+  .bank-pill{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--bg2);color:var(--text2);border:1px solid var(--border);}
+
+  /* Sheets connect bar */
+  .sheets-bar{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;margin-bottom:1.5rem;}
+  .sheets-bar-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .sheets-logo{width:28px;height:28px;background:#0f9d58;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+  .sheets-title{font-weight:500;font-size:14px;}
+  .sheets-subtitle{font-size:12px;color:var(--text2);}
+  .sheets-input-row{display:flex;gap:8px;}
+  .sheets-input-row input{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:12px;padding:8px 12px;outline:none;font-family:'DM Mono',monospace;transition:border-color 0.2s;}
+  .sheets-input-row input:focus{border-color:var(--accent);}
+  .sheets-input-row input::placeholder{color:var(--text3);}
+  .conn-status{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);margin-top:8px;}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+  .conn-dot.connected{background:var(--green);}
+  .conn-dot.error{background:var(--red);}
+
+  /* Stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.5rem;}
+  .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;text-align:center;}
+  .stat-label{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
+  .stat-value{font-size:1.6rem;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;}
+
+  /* Upload */
+  .upload-zone{border:1.5px dashed var(--border2);border-radius:var(--radius-lg);padding:2.5rem 2rem;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;margin-bottom:1rem;}
+  .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(79,124,255,0.04);}
+  .upload-icon{font-size:2.5rem;margin-bottom:0.75rem;display:block;}
+  .upload-zone h3{font-size:15px;font-weight:500;margin-bottom:4px;}
+  .upload-zone p{font-size:13px;color:var(--text2);}
+  .divider{display:flex;align-items:center;gap:1rem;margin:1.25rem 0;color:var(--text3);font-size:12px;}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+  textarea{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:12px 14px;resize:vertical;min-height:120px;outline:none;transition:border-color 0.2s;}
+  textarea:focus{border-color:var(--accent);}
+
+  /* Buttons */
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s,border-color 0.15s;font-family:inherit;}
+  .btn:hover{background:var(--bg3);}
+  .btn:disabled{opacity:0.45;cursor:not-allowed;}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;width:100%;justify-content:center;padding:10px;margin-top:8px;font-size:14px;}
+  .btn-primary:hover{background:var(--accent2);border-color:var(--accent2);}
+  .btn-green{background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.35);color:var(--green);}
+  .btn-green:hover{background:rgba(34,197,94,0.25);}
+  .btn-green:disabled{opacity:0.45;cursor:not-allowed;}
+
+  /* Status */
+  .status{display:none;padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-top:1rem;}
+  .status.info{background:rgba(79,124,255,0.1);color:#93b4ff;border:1px solid rgba(79,124,255,0.2);}
+  .status.warning{background:rgba(251,191,36,0.1);color:var(--amber);border:1px solid rgba(251,191,36,0.2);}
+  .status.success{background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.2);}
+
+  /* Results */
+  #results-section{display:none;margin-top:2rem;}
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;}
+  .section-title{font-size:15px;font-weight:600;}
+  .btn-group{display:flex;gap:8px;flex-wrap:wrap;}
+  .table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:580px;}
+  thead tr{border-bottom:1px solid var(--border);background:var(--bg3);}
+  th{padding:10px 14px;text-align:left;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);white-space:nowrap;}
+  tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:var(--bg3);}
+  td{padding:9px 14px;vertical-align:middle;}
+  .desc-cell{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .amount-cell{font-variant-numeric:tabular-nums;font-family:'DM Mono',monospace;font-size:12px;text-align:right;white-space:nowrap;}
+  .date-cell{color:var(--text2);font-size:12px;white-space:nowrap;}
+  .month-cell{color:var(--text3);font-size:12px;}
+  select{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 6px;border-radius:6px;cursor:pointer;font-family:inherit;outline:none;max-width:140px;}
+  select:focus{border-color:var(--accent);}
+
+  /* Category summary */
+  .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:1.5rem;}
+  .cat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;}
+  .cat-name{font-size:11px;color:var(--text3);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cat-amt{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .progress-bar-wrap{margin-top:6px;height:3px;background:var(--bg3);border-radius:2px;}
+  .progress-bar-fill{height:100%;border-radius:2px;background:var(--accent);}
+  .tip-box{margin-top:1rem;padding:12px 14px;border-radius:var(--radius);background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);font-size:13px;color:#c4b5fd;}
+
+  /* Sync modal */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:1.5rem;width:min(420px,92vw);position:relative;}
+  .modal h2{font-size:16px;font-weight:600;margin-bottom:0.25rem;}
+  .modal p{font-size:13px;color:var(--text2);margin-bottom:1rem;}
+  .modal-close{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;line-height:1;}
+  .radio-group{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem;}
+  .radio-label{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color 0.15s;}
+  .radio-label:hover{border-color:var(--border2);}
+  .radio-label input{margin-top:3px;accent-color:var(--accent);}
+  .radio-title{font-size:13px;font-weight:500;}
+  .radio-desc{font-size:11px;color:var(--text2);}
+
+  footer{text-align:center;padding:2rem;color:var(--text3);font-size:12px;border-top:1px solid var(--border);}
+  footer a{color:var(--text2);text-decoration:none;}
+  footer a:hover{color:var(--accent);}
+  @media(max-width:600px){header{padding:0 1rem;}main{padding:1.5rem 1rem 3rem;}.stats-grid{gap:8px;}.stat-value{font-size:1.2rem;}.btn-group{flex-wrap:wrap;}.sheets-input-row{flex-direction:column;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-icon">💰</div>UPI Parser</div>
+  <span class="badge">Free &amp; Open Source</span>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>UPI Statement Parser</h1>
+    <p>Upload your bank statement — transactions are auto-categorised and synced live to Google Sheets.</p>
+    <div class="bank-pills">
+      <span class="bank-pill">SBI</span><span class="bank-pill">HDFC</span><span class="bank-pill">ICICI</span>
+      <span class="bank-pill">Axis</span><span class="bank-pill">Kotak</span><span class="bank-pill">Canara</span>
+      <span class="bank-pill">BOB</span><span class="bank-pill">BHIM</span><span class="bank-pill">Any CSV</span>
+    </div>
+  </div>
+
+  <!-- Google Sheets connect bar -->
+  <div class="sheets-bar">
+    <div class="sheets-bar-top">
+      <div class="sheets-logo">📊</div>
+      <div>
+        <div class="sheets-title">Connect Google Sheets</div>
+        <div class="sheets-subtitle">Paste your Apps Script Web App URL below to enable live sync</div>
+      </div>
+    </div>
+    <div class="sheets-input-row">
+      <input type="url" id="script-url" placeholder="https://script.google.com/macros/s/YOUR_ID/exec" oninput="saveUrl()">
+      <button class="btn" onclick="testConnection()">Test</button>
+    </div>
+    <div class="conn-status" id="conn-status">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-label">Not connected — paste your Script URL above</span>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value" id="stat-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Debited</div><div class="stat-value" id="stat-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">Categories</div><div class="stat-value" id="stat-cats">—</div></div>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="upload-zone"
+    onclick="document.getElementById('file-input').click()"
+    ondragover="event.preventDefault();this.classList.add('drag-over')"
+    ondragleave="this.classList.remove('drag-over')"
+    ondrop="handleDrop(event)">
+    <span class="upload-icon">📂</span>
+    <h3>Drop your bank statement here</h3>
+    <p>PDF or CSV &nbsp;·&nbsp; All processing happens in your browser &nbsp;·&nbsp; Nothing sent to any server except your own Sheet</p>
+    <input id="file-input" type="file" accept=".pdf,.csv,.txt" style="display:none" onchange="handleFile(event)">
+  </div>
+
+  <div class="divider">or paste CSV / transaction text below</div>
+  <textarea id="paste-input" placeholder="Paste your bank statement CSV rows or transaction lines here..."></textarea>
+  <button class="btn btn-primary" onclick="parseText(document.getElementById('paste-input').value)">Parse →</button>
+
+  <div class="status" id="status-bar"></div>
+
+  <!-- Results -->
+  <div id="results-section">
+    <div class="section-header" style="margin-top:2rem">
+      <span class="section-title">Transactions</span>
+      <div class="btn-group">
+        <button class="btn btn-green" id="sync-btn" onclick="openSyncModal()" disabled>📊 Sync to Google Sheets</button>
+        <button class="btn" onclick="downloadCSV()">⬇ Download CSV</button>
+        <button class="btn" onclick="copyForExcel()">📋 Copy</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Description</th>
+          <th style="text-align:right">Amount (₹)</th>
+          <th>Category</th><th>Month</th>
+        </tr></thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+    <div class="section-header" style="margin-top:2rem">
+      <span class="section-title">Category breakdown</span>
+    </div>
+    <div class="cat-grid" id="cat-summary"></div>
+    <div class="tip-box" id="tip-box">✨ Connect Google Sheets above, then hit <strong>Sync to Google Sheets</strong> to push all transactions live.</div>
+  </div>
+</main>
+
+<!-- Sync modal -->
+<div class="modal-bg" id="sync-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSyncModal()">✕</button>
+    <h2>Sync to Google Sheets</h2>
+    <p>Choose how to handle existing data for the same months:</p>
+    <div class="radio-group">
+      <label class="radio-label">
+        <input type="radio" name="sync-mode" value="append" checked>
+        <div><div class="radio-title">Append (recommended)</div><div class="radio-desc">Add new transactions, skip any duplicates already in the sheet</div></div>
+      </label>
+      <label class="radio-label">
+        <input type="radio" name="sync-mode" value="replace">
+        <div><div class="radio-title">Replace</div><div class="radio-desc">Delete existing rows for these months, then insert fresh data</div></div>
+      </label>
+    </div>
+    <button class="btn btn-green" style="width:100%;justify-content:center;padding:10px" onclick="doSync()">📊 Sync now</button>
+  </div>
+</div>
+
+<footer>
+  <p>All parsing happens in your browser. Only your own Google Sheet receives the data.&nbsp;·&nbsp;
+  <a href="https://github.com/" target="_blank" rel="noopener">View on GitHub</a></p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+const CATEGORIES={
+  "Housing":["rent","maintenance","society","housing","pg","flat","landlord","property"],
+  "Transport":["uber","ola","rapido","metro","irctc","railway","bus","petrol","fuel","diesel","fastag","toll","parking","namma","yulu","auto","cab"],
+  "Food & Dining":["zomato","swiggy","dominos","pizza","restaurant","cafe","hotel","food","dhaba","biryani","mess","canteen","dunzo","blinkit","zepto","bigbasket","grocery","kirana","sweets","bakery"],
+  "Utilities":["electricity","bescom","tneb","water","gas","lpg","indane","hp gas","bharat gas","broadband","internet","jio","airtel","vi ","bsnl","recharge","mobile","postpaid","prepaid"],
+  "Health":["pharmacy","hospital","clinic","doctor","apollo","medplus","1mg","netmeds","diagnostic","lab","health","medicine","insurance","wellness"],
+  "Education":["school","college","university","tuition","course","udemy","coursera","fees","library","book","coaching"],
+  "Shopping":["amazon","flipkart","myntra","ajio","meesho","nykaa","reliance","dmart","mall","shop","store","fashion","cloth","decathlon"],
+  "Entertainment":["netflix","prime","hotstar","spotify","youtube","pvr","inox","bookmyshow","game","cinema","movie"],
+  "Subscriptions":["subscription","renewal","annual","monthly plan","premium","membership"],
+  "Travel":["makemytrip","goibibo","yatra","cleartrip","flight","air india","indigo","hotel booking","oyo","zostel","hostel","travel"],
+  "Family":["transfer","family","wife","husband","mother","father","mom","dad","son","daughter","sister","brother","parent","neft","imps"],
+  "Miscellaneous":[]
+};
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+let parsedRows=[];
+
+// ── URL persistence ───────────────────────────────────────────
+function saveUrl(){
+  const v=document.getElementById("script-url").value.trim();
+  if(v) localStorage.setItem("upi_script_url",v);
+  updateSyncBtn();
+}
+function loadUrl(){
+  const v=localStorage.getItem("upi_script_url")||"";
+  if(v) document.getElementById("script-url").value=v;
+  updateSyncBtn();
+}
+function getUrl(){ return document.getElementById("script-url").value.trim(); }
+function updateSyncBtn(){
+  const has=!!getUrl()&&parsedRows.length>0;
+  document.getElementById("sync-btn").disabled=!has;
+}
+
+// ── Connection test ───────────────────────────────────────────
+async function testConnection(){
+  const url=getUrl();
+  if(!url){showStatus("Paste your Apps Script URL first.","warning");return;}
+  setConn("testing","Testing...");
+  try{
+    const r=await fetch(url,{method:"POST",body:JSON.stringify({action:"ping"})});
+    const d=await r.json();
+    if(d.ok){setConn("connected","Connected — "+d.message);}
+    else{setConn("error","Error: "+d.message);}
+  }catch(e){setConn("error","Could not reach the script. Check the URL and redeploy.");}
+}
+function setConn(state,label){
+  const dot=document.getElementById("conn-dot");
+  const lbl=document.getElementById("conn-label");
+  dot.className="conn-dot"+(state==="connected"?" connected":state==="error"?" error":"");
+  lbl.textContent=label;
+}
+
+// ── Parsing helpers ───────────────────────────────────────────
+function categorise(desc){
+  const d=desc.toLowerCase();
+  for(const[cat,kws]of Object.entries(CATEGORIES)){
+    if(cat==="Miscellaneous")continue;
+    if(kws.some(k=>d.includes(k.toLowerCase())))return cat;
+  }
+  return"Miscellaneous";
+}
+function formatDate(raw){
+  if(!raw)return"";
+  raw=raw.trim().replace(/\//g,"-");
+  const p=raw.split("-");
+  if(p.length===3){
+    let[a,b,c]=p;
+    if(a.length===4){const d=new Date(`${a}-${b.padStart(2,"0")}-${c.padStart(2,"0")}`);if(!isNaN(d))return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});}
+    if(c.length===4){const d=new Date(`${c}-${b.padStart(2,"0")}-${a.padStart(2,"0")}`);if(!isNaN(d))return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});}
+    if(c.length===2){const yr=parseInt(c)>50?"19"+c:"20"+c;const d=new Date(`${yr}-${b.padStart(2,"0")}-${a.padStart(2,"0")}`);if(!isNaN(d))return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});}
+  }
+  return raw;
+}
+function monthFromDate(raw){
+  if(!raw)return"";
+  let d=new Date(raw.trim().replace(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/,"$3-$2-$1"));
+  if(!isNaN(d))return MONTHS[d.getMonth()];
+  const m=raw.match(/[A-Za-z]{3}/);
+  if(m){const i=MONTHS.findIndex(x=>x.toLowerCase()===m[0].toLowerCase());if(i>=0)return MONTHS[i];}
+  return"";
+}
+function splitCSV(line){
+  const r=[];let cur="",inQ=false;
+  for(let i=0;i<line.length;i++){
+    if(line[i]==='"'){inQ=!inQ;continue;}
+    if(line[i]===','&&!inQ){r.push(cur.trim());cur="";continue;}
+    cur+=line[i];
+  }
+  r.push(cur.trim());return r;
+}
+function parseCSVLines(text){
+  const lines=text.trim().split(/\r?\n/).filter(l=>l.trim());
+  const rows=[];let hIdx=-1;
+  let cols={date:-1,desc:-1,debit:-1,amt:-1};
+  for(let i=0;i<Math.min(8,lines.length);i++){
+    const h=lines[i].toLowerCase();
+    if(h.includes("date")||h.includes("narration")||h.includes("description")||h.includes("particulars")){
+      hIdx=i;
+      splitCSV(lines[i]).forEach((p,j)=>{
+        const pl=p.toLowerCase().replace(/"/g,"").trim();
+        if(/^(txn\s*)?date|value\s*date/.test(pl))cols.date=j;
+        if(/narr|desc|particular|remark|payee/.test(pl))cols.desc=j;
+        if(/debit|dr\b|withdraw|paid/.test(pl)&&!/credit/.test(pl))cols.debit=j;
+        if(/^amount$/.test(pl)&&cols.debit<0)cols.amt=j;
+      });break;
+    }
+  }
+  const start=hIdx>=0?hIdx+1:0;
+  for(let i=start;i<lines.length;i++){
+    const p=splitCSV(lines[i]);
+    if(p.length<3)continue;
+    const date=cols.date>=0?p[cols.date]:p[0];
+    const desc=cols.desc>=0?p[cols.desc]:(p[1]||"");
+    let amt=0;
+    if(cols.debit>=0&&p[cols.debit]){const v=parseFloat(p[cols.debit].replace(/[,₹\s]/g,""));if(v>0)amt=v;}
+    if(amt===0&&cols.amt>=0&&p[cols.amt])amt=Math.abs(parseFloat(p[cols.amt].replace(/[,₹\s]/g,""))||0);
+    if(!date||!desc||amt<=0)continue;
+    rows.push({date:formatDate(date),rawDate:date,desc:desc.trim(),amount:amt,category:categorise(desc),month:monthFromDate(date),mode:"UPI"});
+  }
+  return rows;
+}
+function parseNarrative(text){
+  const rows=[];
+  const pats=[
+    /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(.+?)\s+(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{2})?)/gi,
+    /(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{2})?)\s+(?:debited|paid|sent)\s+(?:to|for)\s+(.+?)\s+on\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+  ];
+  let m;
+  for(const pat of pats){
+    pat.lastIndex=0;
+    while((m=pat.exec(text))!==null){
+      const date=m[1]||m[3]||"";const desc=m[2]||"UPI Transaction";
+      const amt=parseFloat((m[3]||m[1]||"0").replace(/,/g,""))||0;
+      if(amt>0)rows.push({date:formatDate(date),rawDate:date,desc:desc.trim(),amount:amt,category:categorise(desc),month:monthFromDate(date),mode:"UPI"});
+    }
+  }
+  return rows;
+}
+function parseText(text){
+  if(!text.trim()){showStatus("Nothing to parse — paste some text or upload a file.","warning");return;}
+  let rows=parseCSVLines(text);
+  if(!rows.length)rows=parseNarrative(text);
+  if(!rows.length){showStatus("Could not detect transactions. Make sure it is a CSV export from your bank.","warning");return;}
+  parsedRows=rows;renderResults();
+}
+
+// ── File handling ─────────────────────────────────────────────
+async function handleFilePDF(file){
+  showStatus("📄 Reading PDF — this may take a moment...","info");
+  try{
+    if(typeof pdfjsLib==="undefined"){showStatus("PDF library still loading — try again.","warning");return;}
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let txt="";
+    for(let p=1;p<=pdf.numPages;p++){const pg=await pdf.getPage(p);const tc=await pg.getTextContent();txt+=tc.items.map(i=>i.str).join(" ")+"\n";}
+    let rows=parseCSVLines(txt);
+    if(!rows.length)rows=parseNarrative(txt);
+    if(!rows.length){showStatus("PDF parsed but no transactions found. Try CSV export from your bank portal.","warning");return;}
+    parsedRows=rows;renderResults();
+  }catch(e){showStatus("PDF error: "+e.message,"warning");}
+}
+function handleFile(e){
+  const f=e.target.files[0];if(!f)return;
+  if(f.name.toLowerCase().endsWith(".pdf")){handleFilePDF(f);return;}
+  const r=new FileReader();r.onload=ev=>parseText(ev.target.result);r.readAsText(f);
+}
+function handleDrop(e){
+  e.preventDefault();document.getElementById("upload-zone").classList.remove("drag-over");
+  const f=e.dataTransfer.files[0];if(!f)return;
+  if(f.name.toLowerCase().endsWith(".pdf")){handleFilePDF(f);return;}
+  const r=new FileReader();r.onload=ev=>parseText(ev.target.result);r.readAsText(f);
+}
+
+// ── Render ────────────────────────────────────────────────────
+function renderResults(){
+  const tbody=document.getElementById("results-body");tbody.innerHTML="";
+  let total=0;const catMap={};const cats=Object.keys(CATEGORIES);
+  parsedRows.forEach((r,i)=>{
+    total+=r.amount;catMap[r.category]=(catMap[r.category]||0)+r.amount;
+    const tr=document.createElement("tr");
+    const opts=cats.map(c=>`<option${c===r.category?" selected":""}>${c}</option>`).join("");
+    tr.innerHTML=`<td class="date-cell">${r.date}</td><td class="desc-cell" title="${r.desc}">${r.desc}</td><td class="amount-cell">₹${r.amount.toLocaleString("en-IN",{maximumFractionDigits:2})}</td><td><select data-idx="${i}">${opts}</select></td><td class="month-cell">${r.month}</td>`;
+    tr.querySelector("select").addEventListener("change",function(){parsedRows[this.dataset.idx].category=this.value;renderSummary();});
+    tbody.appendChild(tr);
+  });
+  document.getElementById("stat-count").textContent=parsedRows.length.toLocaleString("en-IN");
+  document.getElementById("stat-total").textContent="₹"+Math.round(total).toLocaleString("en-IN");
+  document.getElementById("stat-cats").textContent=Object.keys(catMap).length;
+  document.getElementById("results-section").style.display="block";
+  document.getElementById("status-bar").style.display="none";
+  // update tip
+  const connected=!!getUrl();
+  document.getElementById("tip-box").innerHTML=connected
+    ?"✨ Hit <strong>Sync to Google Sheets</strong> to push all transactions live to your sheet."
+    :"✨ Paste your Apps Script URL at the top and hit <strong>Sync to Google Sheets</strong> to go live.";
+  updateSyncBtn();renderSummary();
+  document.getElementById("results-section").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderSummary(){
+  const catMap={};parsedRows.forEach(r=>{catMap[r.category]=(catMap[r.category]||0)+r.amount;});
+  const max=Math.max(...Object.values(catMap));
+  const el=document.getElementById("cat-summary");el.innerHTML="";
+  Object.entries(catMap).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt])=>{
+    const pct=Math.round((amt/max)*100);
+    const c=document.createElement("div");c.className="cat-card";
+    c.innerHTML=`<div class="cat-name">${cat}</div><div class="cat-amt">₹${Math.round(amt).toLocaleString("en-IN")}</div><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>`;
+    el.appendChild(c);
+  });
+}
+
+// ── Sync modal ────────────────────────────────────────────────
+function openSyncModal(){document.getElementById("sync-modal").classList.add("open");}
+function closeSyncModal(){document.getElementById("sync-modal").classList.remove("open");}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSyncModal();});
+
+async function doSync(){
+  closeSyncModal();
+  const url=getUrl();
+  if(!url){showStatus("No Script URL set.","warning");return;}
+  const mode=document.querySelector('input[name="sync-mode"]:checked').value;
+  showStatus("📊 Syncing to Google Sheets...","info");
+  document.getElementById("sync-btn").disabled=true;
+  try{
+    const res=await fetch(url,{
+      method:"POST",
+      body:JSON.stringify({action:mode,rows:parsedRows})
+    });
+    const d=await res.json();
+    if(d.ok){
+      const msg=mode==="append"
+        ?`✅ Synced! ${d.added} new rows added, ${d.skipped} duplicates skipped.`
+        :`✅ Replaced! ${d.replaced} rows written for months: ${d.months.join(", ")}.`;
+      showStatus(msg,"success");
+    }else{
+      showStatus("Sync failed: "+d.message,"warning");
+    }
+  }catch(e){
+    showStatus("Could not reach your script. Make sure it is deployed as a Web App with 'Anyone' access.","warning");
+  }
+  updateSyncBtn();
+}
+
+// ── Download / Copy ───────────────────────────────────────────
+function downloadCSV(){
+  const h="Date,Description,Amount,Category,Month\n";
+  const b=parsedRows.map(r=>`"${r.date}","${r.desc.replace(/"/g,"'")}",${r.amount},"${r.category}","${r.month}"`).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([h+b],{type:"text/csv"}));
+  a.download="UPI_Transactions_"+new Date().toISOString().slice(0,10)+".csv";a.click();
+}
+function copyForExcel(){
+  const h="Date\tDescription\tAmount\tCategory\tMonth";
+  const b=parsedRows.map(r=>[r.date,r.desc,r.amount,r.category,r.month].join("\t")).join("\n");
+  navigator.clipboard.writeText(h+"\n"+b).then(()=>showStatus("✅ Copied! Paste into any spreadsheet with Ctrl+V.","success"))
+  .catch(()=>showStatus("Copy failed — use Download CSV instead.","warning"));
+}
+function showStatus(msg,type="info"){
+  const el=document.getElementById("status-bar");el.style.display="block";
+  el.className="status "+type;el.textContent=msg;
+  if(type==="success")setTimeout(()=>{el.style.display="none";},5000);
+}
+
+window.addEventListener("load",loadUrl);
+</script>
+</body>
+</html>
