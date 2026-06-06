@@ -2,7 +2,7 @@
 
 A free, open-source tool to parse Indian bank statements (PDF/CSV) and sync transactions live to Google Sheets — with auto-categorisation for 12 expense categories.
 
-**Live demo →** `https://Santhoshkrishs.github.io/upi-expense-tracker`
+**Live demo →** `https://santhoshkrishs.github.io/Project-UPI-expense-tracker/`
 
 ![screenshot](docs/screenshot.png)
 
@@ -47,7 +47,7 @@ upi-expense-tracker/
 1. Click **Fork** (top-right of this page)
 2. Go to your fork → **Settings → Pages**
 3. Source: **Deploy from a branch** → `main` → `/ (root)` → **Save**
-4. Your site is live at `https://Santhoshkrishs.github.io/upi-expense-tracker`
+4. Your site is live at `https://santhoshkrishs.github.io/Project-UPI-expense-tracker/`
 
 ### 2. Set Up Google Sheets Sync
 
@@ -99,7 +99,7 @@ After syncing, your sheet will have three tabs:
 No build tools needed — it's just a single HTML file.
 
 ```bash
-git clone https://github.com/Santhoshkrishs/upi-expense-tracker.git
+git clone https://santhoshkrishs.github.io/Project-UPI-expense-tracker/
 cd upi-expense-tracker
 # Open index.html in your browser, or serve with:
 npx serve .
